@@ -7,6 +7,7 @@ import okhttp3.*;
 import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
+import java.util.UUID;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -16,6 +17,7 @@ import java.util.function.Consumer;
 public class PhoenixChannel extends WebSocketListener {
     private final String url;
     private final String topic;
+    private final String clientId;
     private final OkHttpClient client;
     private WebSocket webSocket;
     private final ObjectMapper mapper = new ObjectMapper();
@@ -26,6 +28,7 @@ public class PhoenixChannel extends WebSocketListener {
     public PhoenixChannel(String baseUrl, String apiKey, String topic) {
         this.url = baseUrl.replace("http", "ws") + "/realtime/v1/websocket?apikey=" + apiKey + "&vsn=2.0.0";
         this.topic = "realtime:" + topic;
+        this.clientId = UUID.randomUUID().toString();
         this.client = new OkHttpClient.Builder()
                 .readTimeout(0, TimeUnit.MILLISECONDS)
                 .build();
@@ -75,6 +78,7 @@ public class PhoenixChannel extends WebSocketListener {
         ObjectNode wrappedPayload = mapper.createObjectNode();
         wrappedPayload.put("type", "broadcast");
         wrappedPayload.put("event", event);
+        wrappedPayload.put("sender", clientId);
         wrappedPayload.set("payload", payload);
         msg.set("payload", wrappedPayload);
         msg.put("ref", String.valueOf(refCounter.incrementAndGet()));
@@ -85,6 +89,14 @@ public class PhoenixChannel extends WebSocketListener {
     public void onMessage(@NotNull WebSocket webSocket, @NotNull String text) {
         try {
             JsonNode node = mapper.readTree(text);
+
+            // Check if it's a broadcast from self
+            if (node.has("payload") && node.get("payload").has("sender")) {
+                if (clientId.equals(node.get("payload").get("sender").asText())) {
+                    return; // Ignore self
+                }
+            }
+
             if (messageHandler != null) {
                 messageHandler.accept(node);
             }
