@@ -1,0 +1,10 @@
+name: SupabaseTunnel
+version: 1.0
+main: me.jules.supabasetunnel.SupabaseTunnel
+api-version: 1.16
+authors: [Jules]
+description: A Minecraft tunnel using Supabase.
+commands:
+  st:
+    description: SupabaseTunnel main command
+    usage: /st <reload|status>

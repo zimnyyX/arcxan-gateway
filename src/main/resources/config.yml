@@ -1,0 +1,7 @@
+supabase:
+  url: "https://your-project.supabase.co"
+  anon-key: "your-anon-key"
+  channel: "minecraft-tunnel"
+tunnel:
+  local-port: 25565
+  enabled: true
