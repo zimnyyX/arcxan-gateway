@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import okhttp3.*;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
 import java.util.UUID;
@@ -24,6 +25,7 @@ public class PhoenixChannel extends WebSocketListener {
     private final AtomicInteger refCounter = new AtomicInteger(0);
     private Consumer<JsonNode> messageHandler;
     private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private boolean manuallyClosed = false;
 
     public PhoenixChannel(String baseUrl, String apiKey, String topic) {
         this.url = baseUrl.replace("http", "ws") + "/realtime/v1/websocket?apikey=" + apiKey + "&vsn=2.0.0";
@@ -35,10 +37,14 @@ public class PhoenixChannel extends WebSocketListener {
     }
 
     public void connect() {
+        manuallyClosed = false;
         Request request = new Request.Builder().url(url).build();
         webSocket = client.newWebSocket(request, this);
 
-        scheduler.scheduleAtFixedRate(this::sendHeartbeat, 30, 30, TimeUnit.SECONDS);
+        // Start heartbeat if not already started
+        try {
+            scheduler.scheduleAtFixedRate(this::sendHeartbeat, 30, 30, TimeUnit.SECONDS);
+        } catch (Exception ignored) {}
     }
 
     private void sendHeartbeat() {
@@ -90,10 +96,9 @@ public class PhoenixChannel extends WebSocketListener {
         try {
             JsonNode node = mapper.readTree(text);
 
-            // Check if it's a broadcast from self
             if (node.has("payload") && node.get("payload").has("sender")) {
                 if (clientId.equals(node.get("payload").get("sender").asText())) {
-                    return; // Ignore self
+                    return;
                 }
             }
 
@@ -105,7 +110,26 @@ public class PhoenixChannel extends WebSocketListener {
         }
     }
 
+    @Override
+    public void onClosed(@NotNull WebSocket webSocket, int code, @NotNull String reason) {
+        if (!manuallyClosed) {
+            reconnect();
+        }
+    }
+
+    @Override
+    public void onFailure(@NotNull WebSocket webSocket, @NotNull Throwable t, @Nullable Response response) {
+        if (!manuallyClosed) {
+            reconnect();
+        }
+    }
+
+    private void reconnect() {
+        scheduler.schedule(this::connect, 5, TimeUnit.SECONDS);
+    }
+
     public void disconnect() {
+        manuallyClosed = true;
         scheduler.shutdown();
         if (webSocket != null) {
             webSocket.close(1000, "Goodbye");
