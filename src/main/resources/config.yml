@@ -1,6 +1,6 @@
 supabase:
-  url: "https://your-project.supabase.co"
-  anon-key: "your-anon-key"
+  url: "https://rhjiubcxnxzibqsmfknk.supabase.co"
+  anon-key: "sb_publishable_5IOYQdhg2nfalxrtmkL53A_MnxUfxdG"
   channel: "minecraft-tunnel"
 tunnel:
   local-port: 25565
